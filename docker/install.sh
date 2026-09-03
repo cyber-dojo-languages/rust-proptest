@@ -22,17 +22,24 @@ export CARGO_INCREMENTAL=0
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # A warm-up shaped like the start-point kata, so the entries it leaves are the
-# ones a kata reaches for. It repeats the start-point's Cargo.toml rather than
-# simply depending on proptest, because the package name, the edition, the
-# feature and the test profile are all part of what a compiled artifact is
-# keyed on, and a warm-up differing in any of them caches under a key no kata
-# ever asks for.
+# ones a kata reaches for. It repeats the start-point's edition, dependency,
+# feature and test profile, because each of those is part of what a compiled
+# artifact is keyed on, and a warm-up differing in any of them would cache
+# under a key no kata ever asks for.
+#
+# Its package name is the one thing deliberately unlike the kata's. cargo
+# decides an artifact is fresh by comparing mtimes, and a kata's files reach
+# the container with an mtime older than anything built here, so a compiled
+# crate named as the kata's is named would count as up to date and be run in
+# place of the learner's. The learner would then watch this file's tests pass
+# and take them for their own. The check after the warm-up enforces that
+# nothing named hiker is left behind.
 mkdir -p "${WARMUP_DIR}/src" "${WARMUP_DIR}/tests"
 cd "${WARMUP_DIR}"
 
 cat > Cargo.toml << 'EOF'
 [package]
-name = "hiker"
+name = "cdl-warmup"
 version = "0.1.0"
 edition = "2024"
 
@@ -58,10 +65,10 @@ pub fn answers(count: usize) -> Vec<i32> {
 }
 EOF
 
-cat > tests/hiker_tests.rs << 'EOF'
+cat > tests/cdl_warmup_tests.rs << 'EOF'
 #![cfg_attr(feature = "strict", deny(warnings))]
 
-use hiker::answers;
+use cdl_warmup::answers;
 use proptest::prelude::*;
 
 proptest! {
@@ -129,6 +136,16 @@ fi
 
 cd /
 rm -rf "${WARMUP_DIR}"
+
+# See the warm-up's package name above. A kata's own crate is named hiker, and
+# a compiled one left here would be run instead of the learner's, reporting
+# this file's tests as though they were theirs. A start-point cannot detect
+# that for itself: it looks exactly like a pass.
+if ls "${TARGET_CACHE}"/debug/deps/libhiker-* > /dev/null 2>&1; then
+  >&2 echo "Found a compiled hiker in ${TARGET_CACHE}."
+  >&2 echo "A kata's crate is named hiker, so this copy would be run in place of it."
+  exit 42
+fi
 
 # Both directories are written here by root and read by the sandbox user a kata
 # runs as, which also writes to them: the target cache gains the kata's own
