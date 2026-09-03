@@ -1,0 +1,5 @@
+FROM ghcr.io/cyber-dojo-languages/rust:583f2b3
+LABEL maintainer=jon@jaggersoft.com
+
+COPY ./install.sh .
+RUN chmod +x ./install.sh && ./install.sh && rm ./install.sh
