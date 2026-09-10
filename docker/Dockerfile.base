@@ -1,4 +1,4 @@
-FROM ghcr.io/cyber-dojo-languages/rust:583f2b3
+FROM ghcr.io/cyber-dojo-languages/rust:f479e89
 LABEL maintainer=jon@jaggersoft.com
 
 COPY ./install.sh .
