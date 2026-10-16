@@ -10,6 +10,26 @@
 # here is what makes it pay: every press reads this one and none of them
 # writes it.
 
+# Appends one test framework to the test_frameworks list the base image
+# wrote in /versions.json, keeping any entry an earlier image added. Stops
+# the build if the list is not found, rather than record nothing.
+add_test_framework()
+{
+  local -r name="${1}"
+  local -r version="${2}"
+  local -r entry="{\"name\": \"${name}\", \"version\": \"${version}\"}"
+  if grep -q '"test_frameworks": \[\]' /versions.json; then
+    sed -i "s|\"test_frameworks\": \[\]|\"test_frameworks\": [${entry}]|" /versions.json
+  else
+    sed -i "/\"test_frameworks\": \[/s|}\]|}, ${entry}]|" /versions.json
+  fi
+  if ! grep -q -F "${entry}" /versions.json; then
+    echo "Could not add ${name} to /versions.json" >&2
+    cat /versions.json >&2
+    exit 1
+  fi
+}
+
 readonly TARGET_CACHE=/rust/target-cache
 readonly WARMUP_DIR=/rust/warmup
 
@@ -44,7 +64,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dev-dependencies]
-proptest = "1.11.0"
+proptest = "*"
 
 [features]
 strict = []
@@ -90,6 +110,22 @@ EOF
 # This is the one command here that needs the network, and it is also the only
 # chance to get it: a kata resolves against whatever this leaves behind.
 cargo fetch
+
+# The warm-up asks for any proptest, so the fetch takes the latest. The kata's
+# Cargo.toml has to name a version this registry holds, because a press cannot
+# download another. So the resolved version is recorded, and printed between
+# markers in the build log for copying into the start-point's Cargo.toml.
+readonly PROPTEST_VERSION=$(grep -A1 '^name = "proptest"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+if [ -z "${PROPTEST_VERSION}" ]; then
+  echo 'Could not read the proptest version from Cargo.lock' >&2
+  cat Cargo.lock >&2
+  exit 1
+fi
+add_test_framework proptest "${PROPTEST_VERSION}"
+echo '--- resolved proptest version ---'
+echo "proptest = \"${PROPTEST_VERSION}\""
+echo '--- end resolved proptest version ---'
+cat /versions.json
 
 # From here on every command runs the way a press runs, so what fills the cache
 # is keyed the same way as what will read it.
